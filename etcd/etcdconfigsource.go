@@ -29,3 +29,9 @@ func (e *EtcdWatchedConfigSource) RemoveUpdateListener(listener WatchedUpdateLis
 func (e *EtcdWatchedConfigSource) GetCurrentConfigData() (*map[string]interface{}, error) {
 	return e.valueCache
 }
+
+func (e *EtcdWatchedConfigSource)
+
+func New() *EtcdWatchedConfigSource {
+    return new(EtcdWatchedConfigSource)
+}
