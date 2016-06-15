@@ -2,35 +2,42 @@ package etcd
 
 import (
 	"container/list"
-	"github.com/baoruxing/caius/"
+	"github.com/baoruxing/caius"
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
+	"log"
 	"strings"
+	"time"
 )
 
 type EtcdWatchedConfigSource struct {
 	configPath string
 	valueCache map[string]interface{}
-	listeners  List
+	listeners  *list.List
 	KeysAPI    client.KeysAPI
 }
 
-func (e *EtcdWatchedConfigSource) AddUpdateListener(listener WatchedUpdateListener) {
+func (e *EtcdWatchedConfigSource) AddUpdateListener(listener *caius.WatchedUpdateListener) {
 	if listener != nil {
 		e.listeners.PushBack(listener)
 	}
 
 }
 
-func (e *EtcdWatchedConfigSource) RemoveUpdateListener(listener WatchedUpdateListener) {
+func (e *EtcdWatchedConfigSource) RemoveUpdateListener(listener *caius.WatchedUpdateListener) {
 	if listener != nil {
-		e.listeners.Remove(listener)
+		for el := e.listeners.Front(); el != nil; el = el.Next() {
+			if el.Value == listener {
+				e.listeners.Remove(el)
+			}
+		}
+
 	}
 
 }
 
-func (e *EtcdWatchedConfigSource) GetCurrentConfigData() (*map[string]interface{}, error) {
-	return e.valueCache
+func (e *EtcdWatchedConfigSource) GetCurrentConfigData() (map[string]interface{}, error) {
+	return e.valueCache, nil
 }
 
 func NewEtcdWatchedConfigSource(endpoints []string, configPath string) *EtcdWatchedConfigSource {
@@ -49,31 +56,51 @@ func NewEtcdWatchedConfigSource(endpoints []string, configPath string) *EtcdWatc
 		listeners:  list.New(),
 		KeysAPI:    client.NewKeysAPI(etcdClient),
 	}
+	configSource.cacheValues()
 	go configSource.updateHandler()
 	return configSource
 }
 
+func (e *EtcdWatchedConfigSource) cacheValues() {
+	api := e.KeysAPI
+	res, err := api.Get(context.Background(), e.configPath, &client.GetOptions{Recursive: true})
+	if err != nil {
+		log.Println("Error get configPath:", err)
+		return
+	}
+	nodes := res.Node.Nodes
+	for _, node := range nodes {
+		etcdKey := node.Key
+		splitedKey := strings.Split(etcdKey, "/")
+		sourceKey := splitedKey[len(splitedKey)-1]
+		value := node.Value
+		e.valueCache[sourceKey] = value
+	}
+
+}
+
 func (e *EtcdWatchedConfigSource) updateHandler() {
 	api := e.KeysAPI
-	watcher := api.Watcher("configPath", &client.WatcherOptions{
+	watcher := api.Watcher(e.configPath, &client.WatcherOptions{
 		Recursive: true,
 	})
 	for {
-		res, err := watcher.Next(context.Background)
+		res, err := watcher.Next(context.Background())
 		if err != nil {
 			log.Println("Error watch configPath:", err)
 			break
 		}
 		etcdKey := res.Node.Key
-		splitedKey := trings.Split(etcdKey, "/")
+		splitedKey := strings.Split(etcdKey, "/")
 		sourceKey := splitedKey[len(splitedKey)-1]
 		value := res.Node.Value
+		log.Println("res.Action = ", res.Action)
 		if res.Action == "expire" {
 
 		} else if res.Action == "create" || res.Action == "set" || res.Action == "update" {
 			e.valueCache[sourceKey] = value
 		} else if res.Action == "delete" {
-			delete(e.valueCache, value)
+			delete(e.valueCache, sourceKey)
 		}
 	}
 }
