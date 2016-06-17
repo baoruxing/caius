@@ -1,12 +1,9 @@
 package caius
 
 type WatchedConfigSource interface {
-	AddUpdateListener(listener *WatchedUpdateListener)
+	AddUpdateListener(listener WatchedUpdateListener)
 
-	RemoveUpdateListener(listener *WatchedUpdateListener)
+	RemoveUpdateListener(listener WatchedUpdateListener)
 
 	GetCurrentConfigData() (*map[string]interface{}, error)
-}
-
-type WatchedUpdateListener struct {
 }

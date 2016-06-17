@@ -10,6 +10,8 @@ func TestNewEtcdWatchedConfigSource(t *testing.T) {
 	endpoints := []string{"http://127.0.0.1:4001"}
 	configPath := "/member/register"
 	source := NewEtcdWatchedConfigSource(endpoints, configPath)
+	listener := TestWatchedUpdatedListener{}
+	source.AddUpdateListener(listener)
 	for {
 		data, _ := source.GetCurrentConfigData()
 		fmt.Println(data)
